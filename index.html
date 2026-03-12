@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FliteZone">
+<meta name="theme-color" content="#0a0a0f">
+<title>FliteZone Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c26;
+    --border: #2a2a3a;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --success: #00e676;
+    --warning: #ffb300;
+    --text: #f0f0f8;
+    --text2: #8888aa;
+    --text3: #555570;
+    --font-display: 'Bebas Neue', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    overflow-x: hidden;
+  }
+
+  /* ── SCREENS ── */
+  .screen { display: none; min-height: 100vh; min-height: -webkit-fill-available; flex-direction: column; }
+  .screen.active { display: flex; }
+
+  /* ── HOME SCREEN ── */
+  #home {
+    background: var(--bg);
+    padding: 0;
+  }
+
+  .home-header {
+    padding: 56px 24px 24px;
+    background: linear-gradient(180deg, #0d1117 0%, var(--bg) 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .home-header::before {
+    content: '';
+    position: absolute;
+    top: -60px; left: -40px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .home-header::after {
+    content: '';
+    position: absolute;
+    top: 20px; right: -20px;
+    width: 150px; height: 150px;
+    background: radial-gradient(circle, rgba(255,107,53,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .app-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .brand-icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  .brand-name {
+    font-family: var(--font-display);
+    font-size: 28px;
+    letter-spacing: 2px;
+    color: var(--text);
+  }
+
+  .brand-sub {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .home-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .stat-pill {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    text-align: center;
+  }
+
+  .stat-pill .val {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .stat-pill .lbl {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 2px;
+  }
+
+  .section-label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    font-weight: 600;
+    padding: 20px 24px 12px;
+  }
+
+  .machine-list {
+    padding: 0 16px;
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .machine-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .machine-card:active { transform: scale(0.98); }
+
+  .machine-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--border);
+    border-radius: 3px 0 0 3px;
+    transition: background 0.2s;
+  }
+
+  .machine-card.done::before { background: var(--success); }
+  .machine-card.skipped::before { background: var(--text3); }
+  .machine-card.active-card::before { background: var(--accent); }
+
+  .machine-num {
+    font-family: var(--font-display);
+    font-size: 28px;
+    color: var(--text3);
+    min-width: 28px;
+    text-align: center;
+    transition: color 0.2s;
+  }
+
+  .machine-card.done .machine-num { color: var(--success); }
+  .machine-card.active-card .machine-num { color: var(--accent); }
+
+  .machine-info { flex: 1; }
+
+  .machine-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.3px;
+  }
+
+  .machine-muscle {
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 2px;
+  }
+
+  .machine-last {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 5px;
+  }
+
+  .machine-status {
+    font-size: 20px;
+    min-width: 28px;
+    text-align: center;
+  }
+
+  .start-btn {
+    margin: 16px;
+    padding: 18px;
+    background: linear-gradient(135deg, var(--accent), #0099bb);
+    border: none;
+    border-radius: var(--radius);
+    color: #000;
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    width: calc(100% - 32px);
+    transition: all 0.15s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .start-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+  }
+
+  .start-btn:active { transform: scale(0.98); opacity: 0.9; }
+
+  .start-btn.resume {
+    background: linear-gradient(135deg, var(--accent2), #cc4400);
+  }
+
+  .history-btn {
+    margin: 0 16px 24px;
+    padding: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text2);
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    width: calc(100% - 32px);
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .history-btn:active { opacity: 0.7; }
+
+  /* ── WORKOUT SCREEN ── */
+  #workout {
+    background: var(--bg);
+  }
+
+  .workout-header {
+    padding: 52px 20px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .back-btn {
+    width: 36px; height: 36px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .back-btn:active { opacity: 0.6; }
+
+  .workout-title { flex: 1; }
+
+  .workout-machine-name {
+    font-family: var(--font-display);
+    font-size: 26px;
+    letter-spacing: 1px;
+    line-height: 1;
+  }
+
+  .workout-muscle {
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 3px;
+  }
+
+  .machine-nav {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text3);
+  }
+
+  .progress-bar-wrap {
+    height: 3px;
+    background: var(--border);
+    width: 100%;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width 0.4s ease;
+  }
+
+  .workout-body {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 20px 16px;
+  }
+
+  /* Last session reference */
+  .last-session-ref {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .last-ref-icon { font-size: 16px; }
+
+  .last-ref-text { flex: 1; }
+
+  .last-ref-label {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .last-ref-data {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text2);
+    margin-top: 2px;
+  }
+
+  /* Sets */
+  .sets-header {
+    display: grid;
+    grid-template-columns: 40px 1fr 1fr 40px;
+    gap: 8px;
+    padding: 0 4px 8px;
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 600;
+  }
+
+  .sets-header span:first-child { text-align: center; }
+  .sets-header span:nth-child(2) { text-align: center; }
+  .sets-header span:nth-child(3) { text-align: center; }
+
+  .set-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 1fr 40px;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .set-num {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--text3);
+    text-align: center;
+    transition: color 0.2s;
+  }
+
+  .set-row.set-filled .set-num { color: var(--accent); }
+
+  .set-input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 12px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 18px;
+    text-align: center;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+  }
+
+  .set-input:focus { border-color: var(--accent); }
+  .set-input::placeholder { color: var(--text3); font-size: 14px; }
+
+  .set-check {
+    width: 36px; height: 36px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    transition: all 0.15s;
+    margin: 0 auto;
+  }
+
+  .set-check.checked {
+    background: rgba(0,230,118,0.15);
+    border-color: var(--success);
+  }
+
+  .set-check:active { transform: scale(0.9); }
+
+  .add-set-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text3);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 4px;
+    transition: all 0.15s;
+  }
+
+  .add-set-btn:active { border-color: var(--accent); color: var(--accent); }
+
+  /* Summary */
+  .set-summary {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+  }
+
+  .summary-item {
+    text-align: center;
+    padding: 0 12px;
+    border-right: 1px solid var(--border);
+  }
+
+  .summary-item:last-child { border-right: none; }
+
+  .summary-val {
+    font-family: var(--font-display);
+    font-size: 26px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .summary-lbl {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 2px;
+  }
+
+  /* Mood tags */
+  .mood-section { margin-top: 20px; }
+
+  .mood-label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+  }
+
+  .mood-tags {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .mood-tag {
+    padding: 8px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .mood-tag.selected {
+    background: rgba(0,212,255,0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .mood-tag:active { transform: scale(0.95); }
+
+  /* Action buttons */
+  .action-buttons {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+  }
+
+  .btn-skip {
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text2);
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+
+  .btn-done {
+    padding: 16px;
+    background: linear-gradient(135deg, var(--success), #00aa55);
+    border: none;
+    border-radius: var(--radius);
+    color: #000;
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+
+  .btn-skip:active, .btn-done:active { transform: scale(0.97); }
+
+  /* ── SUMMARY SCREEN ── */
+  #summary {
+    background: var(--bg);
+  }
+
+  .summary-header {
+    padding: 56px 24px 24px;
+    text-align: center;
+    background: linear-gradient(180deg, #0d1117 0%, var(--bg) 100%);
+  }
+
+  .summary-title {
+    font-family: var(--font-display);
+    font-size: 42px;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .summary-date {
+    font-size: 13px;
+    color: var(--text3);
+    margin-top: 6px;
+    letter-spacing: 1px;
+  }
+
+  .summary-totals {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin: 0 16px 20px;
+  }
+
+  .total-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 10px;
+    text-align: center;
+  }
+
+  .total-val {
+    font-family: var(--font-display);
+    font-size: 28px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .total-lbl {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 3px;
+  }
+
+  .machine-results { padding: 0 16px; }
+
+  .result-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .result-row.skipped { opacity: 0.5; }
+
+  .result-num {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--text3);
+    min-width: 24px;
+  }
+
+  .result-info { flex: 1; }
+
+  .result-name {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .result-sets {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text2);
+    margin-top: 3px;
+  }
+
+  .result-vol {
+    text-align: right;
+  }
+
+  .result-vol-val {
+    font-family: var(--font-display);
+    font-size: 20px;
+    color: var(--accent);
+  }
+
+  .result-vol-lbl {
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .result-mood { font-size: 16px; }
+
+  .done-btn {
+    margin: 20px 16px 36px;
+    padding: 18px;
+    background: linear-gradient(135deg, var(--accent), #0099bb);
+    border: none;
+    border-radius: var(--radius);
+    color: #000;
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    width: calc(100% - 32px);
+  }
+
+  .done-btn:active { opacity: 0.9; transform: scale(0.98); }
+
+  /* ── HISTORY SCREEN ── */
+  #history {
+    background: var(--bg);
+  }
+
+  .history-header {
+    padding: 52px 20px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .history-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    letter-spacing: 2px;
+    flex: 1;
+  }
+
+  .history-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+
+  .history-session {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    overflow: hidden;
+  }
+
+  .history-session-header {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+  }
+
+  .history-session-header.open { border-bottom-color: var(--border); }
+
+  .history-session-date {
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .history-session-meta {
+    font-size: 12px;
+    color: var(--text3);
+    font-family: var(--font-mono);
+    margin-top: 2px;
+  }
+
+  .history-session-vol {
+    font-family: var(--font-display);
+    font-size: 22px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .history-session-body {
+    display: none;
+    padding: 12px 16px;
+  }
+
+  .history-session-body.open { display: block; }
+
+  .history-machine-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .history-machine-row:last-child { border-bottom: none; }
+
+  .history-machine-name { color: var(--text2); font-weight: 500; }
+  .history-machine-data { font-family: var(--font-mono); color: var(--text3); font-size: 12px; }
+  .history-machine-vol { font-family: var(--font-display); font-size: 18px; color: var(--text2); }
+
+  .empty-history {
+    text-align: center;
+    padding: 60px 24px;
+    color: var(--text3);
+  }
+
+  .empty-history .big { font-family: var(--font-display); font-size: 60px; opacity: 0.3; }
+  .empty-history p { font-size: 14px; margin-top: 16px; line-height: 1.6; }
+
+  /* ── MISC ── */
+  .pr-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,179,0,0.15);
+    border: 1px solid rgba(255,179,0,0.3);
+    color: var(--warning);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 100px;
+    letter-spacing: 1px;
+    margin-left: 6px;
+  }
+
+  .volume-up {
+    color: var(--success);
+    font-size: 11px;
+    margin-left: 4px;
+  }
+
+  /* Notification toast */
+  .toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 12px 20px;
+    font-size: 14px;
+    color: var(--text);
+    opacity: 0;
+    transition: all 0.3s ease;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 1000;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Export section */
+  .export-btn {
+    margin: 0 16px 16px;
+    padding: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text2);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    width: calc(100% - 32px);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+
+  .export-btn:active { opacity: 0.7; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     HOME SCREEN
+══════════════════════════════════════ -->
+<div class="screen active" id="home">
+  <div class="home-header">
+    <div class="app-brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <div class="brand-name">FLITEZONE</div>
+        <div class="brand-sub">Tracker · EōS Fitness</div>
+      </div>
+    </div>
+    <div class="home-stats">
+      <div class="stat-pill">
+        <div class="val" id="stat-sessions">0</div>
+        <div class="lbl">Sessions</div>
+      </div>
+      <div class="stat-pill">
+        <div class="val" id="stat-streak">0</div>
+        <div class="lbl">Streak</div>
+      </div>
+      <div class="stat-pill">
+        <div class="val" id="stat-volume">0</div>
+        <div class="lbl">Total Vol</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-label">8-Machine Circuit</div>
+
+  <div class="machine-list" id="machine-list">
+    <!-- populated by JS -->
+  </div>
+
+  <button class="start-btn" id="start-btn" onclick="startWorkout()">START WORKOUT</button>
+  <button class="history-btn" onclick="showHistory()">📊 View History & Progress</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     WORKOUT SCREEN
+══════════════════════════════════════ -->
+<div class="screen" id="workout">
+  <div class="workout-header">
+    <div class="back-btn" onclick="confirmBack()">←</div>
+    <div class="workout-title">
+      <div class="workout-machine-name" id="w-machine-name">—</div>
+      <div class="workout-muscle" id="w-machine-muscle">—</div>
+    </div>
+    <div class="machine-nav" id="w-machine-nav">1/8</div>
+  </div>
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="w-progress" style="width:0%"></div>
+  </div>
+
+  <div class="workout-body" id="workout-body">
+    <!-- Last session reference -->
+    <div class="last-session-ref" id="last-ref">
+      <div class="last-ref-icon">📋</div>
+      <div class="last-ref-text">
+        <div class="last-ref-label">Last Session</div>
+        <div class="last-ref-data" id="last-ref-data">No previous data</div>
+      </div>
+    </div>
+
+    <!-- Sets -->
+    <div class="sets-header">
+      <span>SET</span>
+      <span>WEIGHT (lbs)</span>
+      <span>REPS</span>
+      <span>✓</span>
+    </div>
+    <div id="sets-container"></div>
+
+    <button class="add-set-btn" id="add-set-btn" onclick="addSet()">
+      + Add Set
+    </button>
+
+    <!-- Summary -->
+    <div class="set-summary">
+      <div class="summary-item">
+        <div class="summary-val" id="s-sets">0</div>
+        <div class="summary-lbl">Sets</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-val" id="s-reps">0</div>
+        <div class="summary-lbl">Total Reps</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-val" id="s-volume">0</div>
+        <div class="summary-lbl">Volume</div>
+      </div>
+    </div>
+
+    <!-- Mood -->
+    <div class="mood-section">
+      <div class="mood-label">How did it feel?</div>
+      <div class="mood-tags" id="mood-tags">
+        <div class="mood-tag" onclick="selectMood(this, 'easy')">💪 Easy</div>
+        <div class="mood-tag" onclick="selectMood(this, 'good')">👍 Good</div>
+        <div class="mood-tag" onclick="selectMood(this, 'hard')">😅 Hard</div>
+        <div class="mood-tag" onclick="selectMood(this, 'increased')">⬆️ Increased</div>
+        <div class="mood-tag" onclick="selectMood(this, 'dropped')">⬇️ Dropped</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-buttons">
+    <button class="btn-skip" onclick="skipMachine()">⏭ Skip</button>
+    <button class="btn-done" onclick="doneMachine()">DONE ✓</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     SUMMARY SCREEN
+══════════════════════════════════════ -->
+<div class="screen" id="summary">
+  <div class="summary-header">
+    <div class="summary-title">GREAT WORK!</div>
+    <div class="summary-date" id="sum-date">—</div>
+  </div>
+
+  <div class="summary-totals">
+    <div class="total-card">
+      <div class="total-val" id="sum-machines">0</div>
+      <div class="total-lbl">Machines</div>
+    </div>
+    <div class="total-card">
+      <div class="total-val" id="sum-reps">0</div>
+      <div class="total-lbl">Total Reps</div>
+    </div>
+    <div class="total-card">
+      <div class="total-val" id="sum-vol">0</div>
+      <div class="total-lbl">Volume</div>
+    </div>
+  </div>
+
+  <div class="machine-results" id="sum-results"></div>
+
+  <button class="done-btn" onclick="finishWorkout()">BACK TO HOME</button>
+</div>
+
+<!-- ══════════════════════════════════════
+     HISTORY SCREEN
+══════════════════════════════════════ -->
+<div class="screen" id="history">
+  <div class="history-header">
+    <div class="back-btn" onclick="showScreen('home')">←</div>
+    <div class="history-title">HISTORY</div>
+  </div>
+  <div class="history-body">
+    <button class="export-btn" onclick="exportData()">📤 Export Data (for AI Analysis)</button>
+    <div id="history-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════
+// DATA
+// ══════════════════════════════════════
+
+const MACHINES = [
+  { id: 1, name: "Chest Press",    muscle: "Chest · Triceps",      defaultWeight: 15 },
+  { id: 2, name: "Lat Pulldown",   muscle: "Back · Biceps",         defaultWeight: 45 },
+  { id: 3, name: "Leg Extension",  muscle: "Quadriceps",            defaultWeight: 30 },
+  { id: 4, name: "Shoulder Press", muscle: "Shoulders · Triceps",   defaultWeight: 8  },
+  { id: 5, name: "Biceps Curl",    muscle: "Biceps",                defaultWeight: 15 },
+  { id: 6, name: "Leg Curl",       muscle: "Hamstrings",            defaultWeight: 30 },
+  { id: 7, name: "Seated Dip",     muscle: "Triceps · Chest",       defaultWeight: 45 },
+  { id: 8, name: "Oblique Crunch", muscle: "Core · Obliques",       defaultWeight: 30 },
+];
+
+// State
+let currentSession = null;
+let currentMachineIndex = 0;
+let currentSets = [];
+let currentMood = null;
+let machineStatuses = {}; // { machineId: 'done' | 'skipped' | null }
+
+// Storage helpers — safe wrapper that falls back to in-memory if localStorage blocked
+const _memStore = {};
+function _lsGet(key) {
+  try { return localStorage.getItem(key); }
+  catch(e) { return _memStore[key] || null; }
+}
+function _lsSet(key, val) {
+  try { localStorage.setItem(key, val); }
+  catch(e) { _memStore[key] = val; }
+}
+
+function getSessions() {
+  try { return JSON.parse(_lsGet('fz_sessions') || '[]'); }
+  catch(e) { return []; }
+}
+
+function saveSessions(sessions) {
+  _lsSet('fz_sessions', JSON.stringify(sessions));
+}
+
+function getLastSessionData(machineId) {
+  const sessions = getSessions();
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    const s = sessions[i];
+    const m = s.machines && s.machines.find(m => m.id === machineId && m.status === 'done');
+    if (m) return m;
+  }
+  return null;
+}
+
+function getAllTimeVolume(machineId) {
+  // returns array of {date, volume} for chart/analysis
+  const sessions = getSessions();
+  return sessions
+    .filter(s => s.machines)
+    .map(s => {
+      const m = s.machines.find(m => m.id === machineId && m.status === 'done');
+      return m ? { date: s.date, volume: m.volume } : null;
+    })
+    .filter(Boolean);
+}
+
+function isPR(machineId, volume) {
+  const history = getAllTimeVolume(machineId);
+  if (history.length === 0) return false;
+  const maxPrev = Math.max(...history.map(h => h.volume));
+  return volume > maxPrev;
+}
+
+// ══════════════════════════════════════
+// SCREEN MANAGEMENT
+// ══════════════════════════════════════
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ══════════════════════════════════════
+// HOME SCREEN
+// ══════════════════════════════════════
+
+function renderHome() {
+  const sessions = getSessions();
+
+  // Stats
+  document.getElementById('stat-sessions').textContent = sessions.length;
+  document.getElementById('stat-streak').textContent = calcStreak(sessions);
+  const totalVol = sessions.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
+  document.getElementById('stat-volume').textContent = totalVol >= 1000
+    ? (totalVol / 1000).toFixed(1) + 'k' : totalVol;
+
+  // Machine list
+  const list = document.getElementById('machine-list');
+  list.innerHTML = '';
+
+  MACHINES.forEach(m => {
+    const last = getLastSessionData(m.id);
+    const status = machineStatuses[m.id] || null;
+
+    let lastStr = 'No data yet';
+    if (last) {
+      const setStr = last.sets.map(s => `${s.weight}×${s.reps}`).join(' · ');
+      lastStr = `Last: ${setStr} · Vol: ${last.volume}`;
+    }
+
+    const statusIcon = status === 'done' ? '✅' : status === 'skipped' ? '⏭' : '○';
+    const cardClass = status === 'done' ? 'done' : status === 'skipped' ? 'skipped' : '';
+
+    const card = document.createElement('div');
+    card.className = `machine-card ${cardClass}`;
+    card.innerHTML = `
+      <div class="machine-num">${m.id}</div>
+      <div class="machine-info">
+        <div class="machine-name">${m.name}</div>
+        <div class="machine-muscle">${m.muscle}</div>
+        <div class="machine-last">${lastStr}</div>
+      </div>
+      <div class="machine-status">${statusIcon}</div>
+    `;
+    list.appendChild(card);
+  });
+
+  // Start btn
+  const btn = document.getElementById('start-btn');
+  const inProgress = Object.keys(machineStatuses).length > 0 &&
+    Object.keys(machineStatuses).length < MACHINES.length;
+  if (inProgress) {
+    btn.textContent = 'RESUME WORKOUT';
+    btn.classList.add('resume');
+  } else {
+    btn.textContent = 'START WORKOUT';
+    btn.classList.remove('resume');
+  }
+}
+
+function calcStreak(sessions) {
+  if (sessions.length === 0) return 0;
+  const today = new Date(); today.setHours(0,0,0,0);
+  let streak = 0;
+  let checkDate = new Date(today);
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    const d = new Date(sessions[i].date); d.setHours(0,0,0,0);
+    const diff = (checkDate - d) / 86400000;
+    if (diff <= 1) { streak++; checkDate = d; }
+    else break;
+  }
+  return streak;
+}
+
+// ══════════════════════════════════════
+// WORKOUT
+// ══════════════════════════════════════
+
+function startWorkout() {
+  // Always ensure a clean session exists
+  if (!currentSession) {
+    currentSession = { date: new Date().toISOString(), machines: [] };
+    machineStatuses = {};
+  }
+
+  // If all machines already handled, reset for a new session
+  const allDone = MACHINES.every(m =>
+    machineStatuses[m.id] === 'done' || machineStatuses[m.id] === 'skipped');
+  if (allDone) {
+    machineStatuses = {};
+    currentSession = { date: new Date().toISOString(), machines: [] };
+  }
+
+  // Find first undone machine
+  const nextIdx = MACHINES.findIndex(m => !machineStatuses[m.id]);
+  if (nextIdx === -1) {
+    showSummary();
+    return;
+  }
+
+  currentMachineIndex = nextIdx;
+  loadMachine(currentMachineIndex);
+  showScreen('workout');
+}
+
+function loadMachine(idx) {
+  const m = MACHINES[idx];
+  currentSets = [{ weight: '', reps: '', checked: false }];
+  currentMood = null;
+
+  document.getElementById('w-machine-name').textContent = m.name;
+  document.getElementById('w-machine-muscle').textContent = m.muscle;
+  document.getElementById('w-machine-nav').textContent = `${idx + 1} / ${MACHINES.length}`;
+
+  const done = Object.values(machineStatuses).filter(v => v !== null).length;
+  document.getElementById('w-progress').style.width = `${(done / MACHINES.length) * 100}%`;
+
+  // Last session reference
+  const last = getLastSessionData(m.id);
+  if (last) {
+    const setStr = last.sets.map(s => `${s.weight}lbs × ${s.reps}`).join('  ·  ');
+    document.getElementById('last-ref-data').textContent = `${setStr}  (Vol: ${last.volume})`;
+  } else {
+    document.getElementById('last-ref-data').textContent = 'First time on this machine!';
+  }
+
+  // Pre-fill weight from last session or default
+  const defaultW = last ? last.sets[0].weight : m.defaultWeight;
+  currentSets[0].weight = defaultW;
+
+  renderSets();
+  updateSummary();
+
+  // Clear mood tags
+  document.querySelectorAll('.mood-tag').forEach(t => t.classList.remove('selected'));
+}
+
+function renderSets() {
+  const container = document.getElementById('sets-container');
+  container.innerHTML = '';
+
+  currentSets.forEach((set, i) => {
+    const row = document.createElement('div');
+    row.className = `set-row ${set.checked ? 'set-filled' : ''}`;
+    row.innerHTML = `
+      <div class="set-num">${i + 1}</div>
+      <input class="set-input" type="number" inputmode="decimal" placeholder="lbs"
+        value="${set.weight}" onchange="updateSet(${i}, 'weight', this.value)"
+        onfocus="this.select()">
+      <input class="set-input" type="number" inputmode="numeric" placeholder="reps"
+        value="${set.reps}" onchange="updateSet(${i}, 'reps', this.value)"
+        onfocus="this.select()">
+      <div class="set-check ${set.checked ? 'checked' : ''}" onclick="toggleCheck(${i})">
+        ${set.checked ? '✓' : ''}
+      </div>
+    `;
+    container.appendChild(row);
+  });
+
+  // Max 3 sets
+  const addBtn = document.getElementById('add-set-btn');
+  addBtn.style.display = currentSets.length >= 3 ? 'none' : 'flex';
+}
+
+function updateSet(idx, field, val) {
+  currentSets[idx][field] = field === 'weight' ? parseFloat(val) || '' : parseInt(val) || '';
+  updateSummary();
+}
+
+function toggleCheck(idx) {
+  currentSets[idx].checked = !currentSets[idx].checked;
+  renderSets();
+  updateSummary();
+}
+
+function addSet() {
+  if (currentSets.length >= 3) return;
+  // Pre-fill weight from previous set
+  const prevWeight = currentSets[currentSets.length - 1].weight || '';
+  currentSets.push({ weight: prevWeight, reps: '', checked: false });
+  renderSets();
+  updateSummary();
+}
+
+function updateSummary() {
+  const filled = currentSets.filter(s => s.weight && s.reps);
+  const totalReps = filled.reduce((sum, s) => sum + (parseInt(s.reps) || 0), 0);
+  const volume = filled.reduce((sum, s) => sum + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
+
+  document.getElementById('s-sets').textContent = filled.length;
+  document.getElementById('s-reps').textContent = totalReps;
+  document.getElementById('s-volume').textContent = Math.round(volume);
+}
+
+function selectMood(el, mood) {
+  document.querySelectorAll('.mood-tag').forEach(t => t.classList.remove('selected'));
+  el.classList.add('selected');
+  currentMood = mood;
+}
+
+function doneMachine() {
+  const m = MACHINES[currentMachineIndex];
+  const filled = currentSets.filter(s => s.weight && s.reps);
+
+  if (filled.length === 0) {
+    showToast('Log at least one set first 💪');
+    return;
+  }
+
+  const totalReps = filled.reduce((sum, s) => sum + (parseInt(s.reps) || 0), 0);
+  const volume = filled.reduce((sum, s) => sum + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
+
+  const machineData = {
+    id: m.id,
+    name: m.name,
+    status: 'done',
+    sets: filled.map(s => ({ weight: parseFloat(s.weight), reps: parseInt(s.reps) })),
+    totalReps,
+    volume: Math.round(volume),
+    mood: currentMood
+  };
+
+  machineStatuses[m.id] = 'done';
+  currentSession.machines.push(machineData);
+
+  // Check PR
+  if (isPR(m.id, Math.round(volume))) {
+    showToast(`🏆 New Volume PR on ${m.name}!`);
+  }
+
+  advanceToNext();
+}
+
+function skipMachine() {
+  const m = MACHINES[currentMachineIndex];
+  machineStatuses[m.id] = 'skipped';
+  currentSession.machines.push({
+    id: m.id, name: m.name, status: 'skipped',
+    sets: [], totalReps: 0, volume: 0, mood: null
+  });
+  advanceToNext();
+}
+
+function advanceToNext() {
+  // Find next undone machine
+  const nextIdx = MACHINES.findIndex((m, i) => i > currentMachineIndex && !machineStatuses[m.id]);
+  if (nextIdx !== -1) {
+    currentMachineIndex = nextIdx;
+    loadMachine(currentMachineIndex);
+  } else {
+    // Check if all are handled
+    const allHandled = MACHINES.every(m => machineStatuses[m.id]);
+    if (allHandled) {
+      showSummary();
+    } else {
+      // Wrap to find any remaining
+      const anyLeft = MACHINES.findIndex(m => !machineStatuses[m.id]);
+      if (anyLeft !== -1) {
+        currentMachineIndex = anyLeft;
+        loadMachine(currentMachineIndex);
+      } else {
+        showSummary();
+      }
+    }
+  }
+}
+
+function confirmBack() {
+  if (confirm('Go back to home? Your progress is saved.')) {
+    renderHome();
+    showScreen('home');
+  }
+}
+
+// ══════════════════════════════════════
+// SUMMARY
+// ══════════════════════════════════════
+
+function showSummary() {
+  const done = currentSession.machines.filter(m => m.status === 'done');
+  const totalReps = done.reduce((sum, m) => sum + m.totalReps, 0);
+  const totalVol = done.reduce((sum, m) => sum + m.volume, 0);
+
+  document.getElementById('sum-date').textContent =
+    new Date(currentSession.date).toLocaleDateString('en-US', {
+      weekday: 'long', month: 'long', day: 'numeric'
+    });
+  document.getElementById('sum-machines').textContent = done.length;
+  document.getElementById('sum-reps').textContent = totalReps;
+  document.getElementById('sum-vol').textContent = totalVol;
+
+  const resultsEl = document.getElementById('sum-results');
+  resultsEl.innerHTML = '';
+
+  MACHINES.forEach(machine => {
+    const m = currentSession.machines.find(x => x.id === machine.id);
+    if (!m) return;
+
+    const row = document.createElement('div');
+    row.className = `result-row ${m.status === 'skipped' ? 'skipped' : ''}`;
+
+    const moodMap = { easy:'💪', good:'👍', hard:'😅', increased:'⬆️', dropped:'⬇️' };
+    const moodIcon = m.mood ? moodMap[m.mood] || '' : '';
+    const prBadge = (m.status === 'done' && isPR(m.id, m.volume))
+      ? '<span class="pr-badge">🏆 PR</span>' : '';
+
+    const setsStr = m.status === 'done'
+      ? m.sets.map(s => `${s.weight}×${s.reps}`).join(' · ')
+      : 'Skipped';
+
+    row.innerHTML = `
+      <div class="result-num">${machine.id}</div>
+      <div class="result-info">
+        <div class="result-name">${machine.name} ${prBadge}</div>
+        <div class="result-sets">${setsStr}</div>
+      </div>
+      ${m.status === 'done' ? `
+        <div class="result-mood">${moodIcon}</div>
+        <div class="result-vol">
+          <div class="result-vol-val">${m.volume}</div>
+          <div class="result-vol-lbl">vol</div>
+        </div>
+      ` : ''}
+    `;
+    resultsEl.appendChild(row);
+  });
+
+  showScreen('summary');
+}
+
+function finishWorkout() {
+  // Save session
+  currentSession.totalVolume =
+    (currentSession.machines || []).reduce((sum, m) => sum + m.volume, 0);
+
+  const sessions = getSessions();
+  sessions.push(currentSession);
+  saveSessions(sessions);
+
+  // Reset
+  currentSession = null;
+  machineStatuses = {};
+  currentSets = [];
+
+  renderHome();
+  showScreen('home');
+  showToast('Workout saved! 🎉');
+}
+
+// ══════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════
+
+function showHistory() {
+  renderHistory();
+  showScreen('history');
+}
+
+function renderHistory() {
+  const sessions = getSessions();
+  const list = document.getElementById('history-list');
+
+  if (sessions.length === 0) {
+    list.innerHTML = `
+      <div class="empty-history">
+        <div class="big">0</div>
+        <p>No sessions yet.<br>Complete your first workout to see history here.</p>
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = '';
+  const reversed = [...sessions].reverse();
+
+  reversed.forEach((s, i) => {
+    const done = (s.machines || []).filter(m => m.status === 'done');
+    const vol = s.totalVolume || 0;
+    const date = new Date(s.date).toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric'
+    });
+
+    const el = document.createElement('div');
+    el.className = 'history-session';
+    el.innerHTML = `
+      <div class="history-session-header" onclick="toggleHistorySession(this)">
+        <div>
+          <div class="history-session-date">${date}</div>
+          <div class="history-session-meta">${done.length} machines · ${
+            done.reduce((sum, m) => sum + m.totalReps, 0)} reps</div>
+        </div>
+        <div class="history-session-vol">${vol}</div>
+      </div>
+      <div class="history-session-body">
+        ${(s.machines || []).filter(m => m.status === 'done').map(m => `
+          <div class="history-machine-row">
+            <div class="history-machine-name">${m.name}</div>
+            <div class="history-machine-data">${m.sets.map(s => `${s.weight}×${s.reps}`).join(' · ')}</div>
+            <div class="history-machine-vol">${m.volume}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    list.appendChild(el);
+  });
+}
+
+function toggleHistorySession(header) {
+  header.classList.toggle('open');
+  header.nextElementSibling.classList.toggle('open');
+}
+
+// ══════════════════════════════════════
+// EXPORT
+// ══════════════════════════════════════
+
+function exportData() {
+  const sessions = getSessions();
+  const json = JSON.stringify(sessions, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `flitezone-data-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  showToast('Data exported! 📤');
+}
+
+// ══════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
+
+renderHome();
+</script>
+</body>
+</html>
