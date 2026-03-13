@@ -1117,6 +1117,10 @@
   </div>
   <div class="history-body">
     <button class="export-btn" onclick="exportData()">📤 Export Data (for AI Analysis)</button>
+    <label class="export-btn" style="cursor:pointer">
+      📥 Restore from Backup
+      <input type="file" accept=".json" style="display:none" onchange="restoreFromBackup(this.files[0])">
+    </label>
     <div id="history-list"></div>
   </div>
 </div>
@@ -1611,6 +1615,43 @@ function finishWorkout() {
   renderHome();
   showScreen('home');
   showToast('Workout saved! 🎉');
+
+  // Auto-backup after short delay so toast shows first
+  setTimeout(() => autoBackup(sessions), 1200);
+}
+
+function autoBackup(sessions) {
+  try {
+    const json = JSON.stringify(sessions, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const date = new Date().toISOString().slice(0, 10);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `flitezone-backup-${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('📦 Backup saved to your phone!');
+  } catch(e) {
+    console.warn('Auto-backup failed:', e);
+  }
+}
+
+function restoreFromBackup(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!Array.isArray(data)) throw new Error('Invalid format');
+      saveSessions(data);
+      renderHome();
+      showToast(`✅ Restored ${data.length} session${data.length !== 1 ? 's' : ''}!`);
+    } catch(err) {
+      showToast('❌ Could not read backup file');
+    }
+  };
+  reader.readAsText(file);
 }
 
 // ══════════════════════════════════════
@@ -1807,7 +1848,18 @@ function showToast(msg) {
 // INIT
 // ══════════════════════════════════════
 
-renderHome();
+// On startup: if no sessions in localStorage, show restore hint
+function init() {
+  renderHome();
+  const sessions = getSessions();
+  if (sessions.length === 0) {
+    setTimeout(() => {
+      showToast('💡 Have a backup? Restore it in History →');
+    }, 1500);
+  }
+}
+
+init();
 </script>
 </body>
 </html>
