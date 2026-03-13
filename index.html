@@ -862,6 +862,100 @@
   }
 
   .export-btn:active { opacity: 0.7; }
+
+  .card-tap-hint {
+    font-size: 10px;
+    color: var(--accent);
+    margin-top: 4px;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+
+  /* ── INSIGHTS SCREEN ── */
+  #insights { background: var(--bg); }
+
+  .insights-header {
+    padding: 52px 20px 20px;
+    display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .insights-title {
+    font-family: var(--font-display);
+    font-size: 28px; letter-spacing: 2px; flex: 1;
+  }
+
+  .insights-body {
+    flex: 1; overflow-y: auto; padding: 16px;
+  }
+
+  .insights-machine-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px; margin-bottom: 12px;
+  }
+
+  .insights-machine-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .insights-machine-name {
+    font-size: 15px; font-weight: 600;
+  }
+
+  .insights-machine-muscle {
+    font-size: 11px; color: var(--text3); margin-top: 2px;
+  }
+
+  .insights-trend {
+    font-family: var(--font-display);
+    font-size: 22px; color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .insights-trend.up { color: var(--success); }
+  .insights-trend.down { color: var(--accent2); }
+  .insights-trend.same { color: var(--text3); }
+
+  .insights-bar-wrap {
+    height: 6px; background: var(--border);
+    border-radius: 3px; margin: 8px 0 6px; overflow: hidden;
+  }
+
+  .insights-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 3px;
+    transition: width 0.6s ease;
+  }
+
+  .insights-meta {
+    display: flex; justify-content: space-between;
+    font-family: var(--font-mono); font-size: 11px; color: var(--text3);
+  }
+
+  .insights-coaching {
+    background: rgba(0,212,255,0.06);
+    border: 1px solid rgba(0,212,255,0.15);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px; margin-top: 10px;
+    font-size: 13px; color: var(--text2); line-height: 1.5;
+  }
+
+  .insights-coaching .coaching-label {
+    font-size: 10px; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 2px;
+    font-weight: 600; margin-bottom: 5px;
+  }
+
+  .no-insights {
+    text-align: center; padding: 60px 24px; color: var(--text3);
+  }
+
+  .no-insights .big { font-family: var(--font-display); font-size: 60px; opacity: 0.3; }
+  .no-insights p { font-size: 14px; margin-top: 16px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -901,7 +995,10 @@
   </div>
 
   <button class="start-btn" id="start-btn" onclick="startWorkout()">START WORKOUT</button>
-  <button class="history-btn" onclick="showHistory()">📊 View History & Progress</button>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 16px 24px">
+    <button class="history-btn" style="margin:0;width:100%" onclick="showHistory()">📋 History</button>
+    <button class="history-btn" style="margin:0;width:100%" onclick="showInsights()">📊 Insights</button>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -914,7 +1011,10 @@
       <div class="workout-machine-name" id="w-machine-name">—</div>
       <div class="workout-muscle" id="w-machine-muscle">—</div>
     </div>
-    <div class="machine-nav" id="w-machine-nav">1/8</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="back-btn" id="w-prev-btn" onclick="goToPrevMachine()" style="display:none">←</div>
+      <div class="machine-nav" id="w-machine-nav">1/8</div>
+    </div>
   </div>
   <div class="progress-bar-wrap">
     <div class="progress-bar-fill" id="w-progress" style="width:0%"></div>
@@ -1019,6 +1119,15 @@
     <button class="export-btn" onclick="exportData()">📤 Export Data (for AI Analysis)</button>
     <div id="history-list"></div>
   </div>
+</div>
+
+<!-- INSIGHTS SCREEN -->
+<div class="screen" id="insights">
+  <div class="insights-header">
+    <div class="back-btn" onclick="showScreen('home')">←</div>
+    <div class="insights-title">INSIGHTS</div>
+  </div>
+  <div class="insights-body" id="insights-body"></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1138,15 +1247,27 @@ function renderHome() {
 
     const card = document.createElement('div');
     card.className = `machine-card ${cardClass}`;
+
+    const inWorkout = currentSession !== null;
+    const tapHint = inWorkout && status !== 'done'
+      ? `<div class="card-tap-hint">${status === 'skipped' ? '↩ Tap to redo' : '→ Tap to jump here'}</div>`
+      : '';
+
     card.innerHTML = `
       <div class="machine-num">${m.id}</div>
       <div class="machine-info">
         <div class="machine-name">${m.name}</div>
         <div class="machine-muscle">${m.muscle}</div>
         <div class="machine-last">${lastStr}</div>
+        ${tapHint}
       </div>
       <div class="machine-status">${statusIcon}</div>
     `;
+
+    if (inWorkout) {
+      card.addEventListener('click', () => jumpToMachine(m.id));
+    }
+
     list.appendChild(card);
   });
 
@@ -1235,6 +1356,10 @@ function loadMachine(idx) {
 
   renderSets();
   updateSummary();
+
+  // Show prev button if not on first machine
+  const prevBtn = document.getElementById('w-prev-btn');
+  if (prevBtn) prevBtn.style.display = idx > 0 ? 'flex' : 'none';
 
   // Clear mood tags
   document.querySelectorAll('.mood-tag').forEach(t => t.classList.remove('selected'));
@@ -1339,11 +1464,47 @@ function doneMachine() {
 function skipMachine() {
   const m = MACHINES[currentMachineIndex];
   machineStatuses[m.id] = 'skipped';
+  currentSession.machines = currentSession.machines.filter(x => x.id !== m.id);
   currentSession.machines.push({
     id: m.id, name: m.name, status: 'skipped',
     sets: [], totalReps: 0, volume: 0, mood: null
   });
   advanceToNext();
+}
+
+function jumpToMachine(machineId) {
+  const idx = MACHINES.findIndex(m => m.id === machineId);
+  if (idx === -1) return;
+  const status = machineStatuses[machineId];
+  if (status === 'done') {
+    showToast('Already done ✅ — tap Skip to redo');
+    return;
+  }
+  if (status === 'skipped') {
+    delete machineStatuses[machineId];
+    currentSession.machines = currentSession.machines.filter(x => x.id !== machineId);
+  }
+  currentMachineIndex = idx;
+  loadMachine(idx);
+  showScreen('workout');
+}
+
+function goToPrevMachine() {
+  // Find the most recently done/skipped machine before current
+  for (let i = currentMachineIndex - 1; i >= 0; i--) {
+    const m = MACHINES[i];
+    if (machineStatuses[m.id]) {
+      // Un-do it so they can re-log
+      const prevStatus = machineStatuses[m.id];
+      delete machineStatuses[m.id];
+      currentSession.machines = currentSession.machines.filter(x => x.id !== m.id);
+      currentMachineIndex = i;
+      loadMachine(i);
+      showToast('Going back to ' + m.name);
+      return;
+    }
+  }
+  showToast('Already at the first machine');
 }
 
 function advanceToNext() {
@@ -1512,6 +1673,107 @@ function renderHistory() {
 function toggleHistorySession(header) {
   header.classList.toggle('open');
   header.nextElementSibling.classList.toggle('open');
+}
+
+// ══════════════════════════════════════
+// INSIGHTS
+// ══════════════════════════════════════
+
+function showInsights() {
+  renderInsights();
+  showScreen('insights');
+}
+
+function renderInsights() {
+  const sessions = getSessions();
+  const body = document.getElementById('insights-body');
+
+  if (sessions.length === 0) {
+    body.innerHTML = `<div class="no-insights">
+      <div class="big">📊</div>
+      <p>Complete at least one workout to see insights here.</p>
+    </div>`;
+    return;
+  }
+
+  let html = '';
+
+  MACHINES.forEach(m => {
+    const history = getAllTimeVolume(m.id);
+    if (history.length === 0) return;
+
+    const latest = history[history.length - 1];
+    const prev = history.length > 1 ? history[history.length - 2] : null;
+    const maxVol = Math.max(...history.map(h => h.volume));
+    const barPct = maxVol > 0 ? Math.round((latest.volume / maxVol) * 100) : 0;
+
+    // Trend
+    let trendIcon = '—'; let trendClass = 'same';
+    if (prev) {
+      if (latest.volume > prev.volume) { trendIcon = '▲ ' + latest.volume; trendClass = 'up'; }
+      else if (latest.volume < prev.volume) { trendIcon = '▼ ' + latest.volume; trendClass = 'down'; }
+      else { trendIcon = '= ' + latest.volume; trendClass = 'same'; }
+    } else {
+      trendIcon = latest.volume; trendClass = 'same';
+    }
+
+    // Simple coaching tip
+    let tip = '';
+    if (history.length === 1) {
+      tip = 'First session logged! Keep going — consistency is everything right now.';
+    } else {
+      const last3 = history.slice(-3);
+      const allSameVol = last3.every(h => h.volume === last3[0].volume);
+      const trending = latest.volume > (prev ? prev.volume : 0);
+      if (allSameVol && last3.length >= 3) {
+        tip = 'Volume has been flat for 3 sessions. Consider adding 1 rep per set next time.';
+      } else if (trending) {
+        tip = 'Volume is up from last session — great progress! Maintain this weight until 3×12 feels easy.';
+      } else {
+        tip = 'Volume dipped this session — totally normal. Stay consistent and it will come back up.';
+      }
+    }
+
+    // Last session sets detail
+    const lastMachineData = sessions.slice().reverse()
+      .map(s => s.machines && s.machines.find(x => x.id === m.id && x.status === 'done'))
+      .find(Boolean);
+    const setsStr = lastMachineData
+      ? lastMachineData.sets.map(s => s.weight + '×' + s.reps).join(' · ')
+      : '—';
+
+    html += `
+      <div class="insights-machine-card">
+        <div class="insights-machine-header">
+          <div>
+            <div class="insights-machine-name">${m.id}. ${m.name}</div>
+            <div class="insights-machine-muscle">${m.muscle}</div>
+          </div>
+          <div class="insights-trend ${trendClass}">${trendIcon}</div>
+        </div>
+        <div class="insights-bar-wrap">
+          <div class="insights-bar-fill" style="width:${barPct}%"></div>
+        </div>
+        <div class="insights-meta">
+          <span>Last: ${setsStr}</span>
+          <span>${history.length} session${history.length !== 1 ? 's' : ''} · Best vol: ${maxVol}</span>
+        </div>
+        <div class="insights-coaching">
+          <div class="coaching-label">💡 Coaching</div>
+          ${tip}
+        </div>
+      </div>
+    `;
+  });
+
+  if (!html) {
+    body.innerHTML = `<div class="no-insights">
+      <div class="big">📊</div>
+      <p>No completed machines yet. Skip counts won't appear here.</p>
+    </div>`;
+  } else {
+    body.innerHTML = html;
+  }
 }
 
 // ══════════════════════════════════════
