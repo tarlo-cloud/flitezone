@@ -937,11 +937,11 @@
   }
 
   .insights-coaching {
-    background: rgba(0,212,255,0.06);
-    border: 1px solid rgba(0,212,255,0.15);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px; margin-top: 10px;
-    font-size: 13px; color: var(--text2); line-height: 1.5;
+    background: var(--surface2);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 11px 14px; margin-top: 12px;
+    font-size: 13px; color: var(--text2); line-height: 1.6;
   }
 
   .insights-coaching .coaching-label {
@@ -1725,6 +1725,54 @@ function showInsights() {
   showScreen('insights');
 }
 
+function getCoachingTip(m, history, lastData) {
+  const mood = lastData ? lastData.mood : null;
+  const sets = lastData ? lastData.sets : [];
+  const numSets = sets.length;
+
+  if (history.length === 1) {
+    // First session tips per machine
+    const firstTips = {
+      1: "Great start. Focus on full chest extension. Stay at this weight until 3 sets of 12 feel comfortable.",
+      2: "Lat pulldown is tricky at first — pull to your chest, not behind your neck. Form beats weight here.",
+      3: "Good baseline. Quads respond well to volume — try 2 sets next session before going to 3.",
+      4: "Shoulders are small muscles and injury-prone. Small jumps only. Never rush weight increases here.",
+      5: "Slow the curl down — 2 seconds up, 2 seconds down. The squeeze at the top is where the gains are.",
+      6: "Hamstrings are often weaker than quads — this is normal. Stay consistent and they'll catch up.",
+      7: "Seated dip works triceps and chest together. Keep elbows close to your body for best results.",
+      8: "Core work pays off across every other machine. Try to include this next session.",
+    };
+    let tip = firstTips[m.id] || 'First session logged — consistency is everything right now.';
+    if (mood === 'easy') tip += ' It felt easy — consider adding 1 set next time before increasing weight.';
+    if (mood === 'hard') tip += ' It felt hard — stay at this weight and focus on form before progressing.';
+    return tip;
+  }
+
+  const prev = history[history.length - 2];
+  const latest = history[history.length - 1];
+  const last3 = history.slice(-3);
+  const allSameVol = last3.length >= 3 && last3.every(h => h.volume === last3[0].volume);
+  const volUp = latest.volume > prev.volume;
+  const volDown = latest.volume < prev.volume;
+
+  if (allSameVol) {
+    return `Volume has been the same for 3 sessions in a row. Time to add 1 rep per set — don't increase weight yet, just squeeze out one more rep each set.`;
+  }
+  if (volUp && mood === 'easy') {
+    return `Volume is up and it felt easy — you're ready to increase weight by the smallest increment next session. Great momentum.`;
+  }
+  if (volUp) {
+    return `Volume improved from last session — solid progress. Keep this weight and aim for ${numSets < 3 ? 'adding a third set' : 'consistent 3×12'} before moving up.`;
+  }
+  if (volDown && mood === 'hard') {
+    return `Volume dipped and it felt hard — this can mean fatigue or an off day. Totally normal. Stay here and it will bounce back.`;
+  }
+  if (volDown) {
+    return `Volume dipped slightly from last session. Don't reduce weight — just focus on form and consistency next time.`;
+  }
+  return `Volume is holding steady. Push for one extra rep per set before considering a weight increase.`;
+}
+
 function renderInsights() {
   const sessions = getSessions();
   const body = document.getElementById('insights-body');
@@ -1732,72 +1780,126 @@ function renderInsights() {
   if (sessions.length === 0) {
     body.innerHTML = `<div class="no-insights">
       <div class="big">📊</div>
-      <p>Complete at least one workout to see insights here.</p>
+      <p>Complete your first workout to see insights here.</p>
     </div>`;
     return;
   }
 
-  let html = '';
+  // Session-level totals from most recent session
+  const lastSession = sessions[sessions.length - 1];
+  const lastDone = (lastSession.machines || []).filter(m => m.status === 'done');
+  const lastTotalReps = lastDone.reduce((sum, m) => sum + m.totalReps, 0);
+  const lastTotalVol = lastDone.reduce((sum, m) => sum + m.volume, 0);
+  const lastDate = new Date(lastSession.date).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric'
+  });
+
+  // All sessions total volume for comparison
+  const prevSession = sessions.length > 1 ? sessions[sessions.length - 2] : null;
+  const prevVol = prevSession
+    ? (prevSession.machines || []).filter(m => m.status === 'done').reduce((sum, m) => sum + m.volume, 0)
+    : null;
+  const volDelta = prevVol !== null ? lastTotalVol - prevVol : null;
+  const deltaStr = volDelta !== null
+    ? (volDelta >= 0 ? `+${volDelta} vs last` : `${volDelta} vs last`)
+    : `Session ${sessions.length} of ${sessions.length}`;
+
+  let html = `
+    <div style="padding:16px 0 8px">
+      <div style="font-size:13px;color:var(--text3);margin-bottom:12px;letter-spacing:1px">${lastDate}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px">
+        <div class="stat-pill">
+          <div class="val">${lastDone.length}</div>
+          <div class="lbl">Machines</div>
+        </div>
+        <div class="stat-pill">
+          <div class="val">${lastTotalReps}</div>
+          <div class="lbl">Reps</div>
+        </div>
+        <div class="stat-pill">
+          <div class="val">${lastTotalVol >= 1000 ? (lastTotalVol/1000).toFixed(1)+'k' : lastTotalVol}</div>
+          <div class="lbl">${deltaStr}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Max volume across all machines this session (for relative bar)
+  const sessionMaxVol = Math.max(...lastDone.map(m => m.volume), 1);
 
   MACHINES.forEach(m => {
     const history = getAllTimeVolume(m.id);
-    if (history.length === 0) return;
+
+    // Check if skipped in last session
+    const lastEntry = (lastSession.machines || []).find(x => x.id === m.id);
+    const wasSkipped = lastEntry && lastEntry.status === 'skipped';
+    const neverDone = history.length === 0;
+
+    if (neverDone && !wasSkipped) return; // never appeared, skip silently
+
+    if (wasSkipped || neverDone) {
+      html += `
+        <div class="insights-machine-card" style="opacity:0.55">
+          <div class="insights-machine-header">
+            <div>
+              <div class="insights-machine-name">${m.id}. ${m.name}
+                <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:6px">skipped</span>
+              </div>
+              <div class="insights-machine-muscle">${m.muscle}</div>
+            </div>
+          </div>
+          <div class="insights-coaching">
+            <div class="coaching-label">💡 Coaching</div>
+            Try to include this next session — every machine in the circuit is there for a reason.
+          </div>
+        </div>
+      `;
+      return;
+    }
 
     const latest = history[history.length - 1];
     const prev = history.length > 1 ? history[history.length - 2] : null;
     const maxVol = Math.max(...history.map(h => h.volume));
-    const barPct = maxVol > 0 ? Math.round((latest.volume / maxVol) * 100) : 0;
+    const barPct = Math.round((latest.volume / sessionMaxVol) * 100);
 
-    // Trend
-    let trendIcon = '—'; let trendClass = 'same';
+    // Trend arrow + color
+    let trendStr = '—'; let trendClass = 'same';
     if (prev) {
-      if (latest.volume > prev.volume) { trendIcon = '▲ ' + latest.volume; trendClass = 'up'; }
-      else if (latest.volume < prev.volume) { trendIcon = '▼ ' + latest.volume; trendClass = 'down'; }
-      else { trendIcon = '= ' + latest.volume; trendClass = 'same'; }
+      if (latest.volume > prev.volume) { trendStr = '▲ ' + latest.volume; trendClass = 'up'; }
+      else if (latest.volume < prev.volume) { trendStr = '▼ ' + latest.volume; trendClass = 'down'; }
+      else { trendStr = '= ' + latest.volume; trendClass = 'same'; }
     } else {
-      trendIcon = latest.volume; trendClass = 'same';
+      trendStr = latest.volume + ' vol'; trendClass = 'same';
     }
 
-    // Simple coaching tip
-    let tip = '';
-    if (history.length === 1) {
-      tip = 'First session logged! Keep going — consistency is everything right now.';
-    } else {
-      const last3 = history.slice(-3);
-      const allSameVol = last3.every(h => h.volume === last3[0].volume);
-      const trending = latest.volume > (prev ? prev.volume : 0);
-      if (allSameVol && last3.length >= 3) {
-        tip = 'Volume has been flat for 3 sessions. Consider adding 1 rep per set next time.';
-      } else if (trending) {
-        tip = 'Volume is up from last session — great progress! Maintain this weight until 3×12 feels easy.';
-      } else {
-        tip = 'Volume dipped this session — totally normal. Stay consistent and it will come back up.';
-      }
-    }
-
-    // Last session sets detail
-    const lastMachineData = sessions.slice().reverse()
+    // Last session data
+    const lastData = sessions.slice().reverse()
       .map(s => s.machines && s.machines.find(x => x.id === m.id && x.status === 'done'))
       .find(Boolean);
-    const setsStr = lastMachineData
-      ? lastMachineData.sets.map(s => s.weight + '×' + s.reps).join(' · ')
-      : '—';
+    const setsStr = lastData ? lastData.sets.map(s => s.weight + '×' + s.reps).join(' · ') : '—';
+    const moodMap = { easy:'💪 Easy', good:'👍 Good', hard:'😅 Hard', increased:'⬆️ Increased', dropped:'⬇️ Dropped' };
+    const moodStr = lastData && lastData.mood ? moodMap[lastData.mood] || '' : '';
+    const prBadge = isPR(m.id, latest.volume)
+      ? `<span style="font-size:10px;background:rgba(255,179,0,0.15);color:var(--warning);border:1px solid rgba(255,179,0,0.3);padding:1px 7px;border-radius:100px;margin-left:6px;letter-spacing:1px">PR</span>`
+      : '';
+
+    const tip = getCoachingTip(m, history, lastData);
 
     html += `
       <div class="insights-machine-card">
         <div class="insights-machine-header">
           <div>
-            <div class="insights-machine-name">${m.id}. ${m.name}</div>
+            <div class="insights-machine-name">${m.id}. ${m.name}${prBadge}</div>
             <div class="insights-machine-muscle">${m.muscle}</div>
           </div>
-          <div class="insights-trend ${trendClass}">${trendIcon}</div>
+          <div class="insights-trend ${trendClass}">${trendStr}</div>
         </div>
         <div class="insights-bar-wrap">
           <div class="insights-bar-fill" style="width:${barPct}%"></div>
         </div>
         <div class="insights-meta">
-          <span>Last: ${setsStr}</span>
-          <span>${history.length} session${history.length !== 1 ? 's' : ''} · Best vol: ${maxVol}</span>
+          <span>${setsStr}</span>
+          <span>${moodStr ? moodStr + '  ·  ' : ''}${history.length} session${history.length !== 1 ? 's' : ''}</span>
         </div>
         <div class="insights-coaching">
           <div class="coaching-label">💡 Coaching</div>
@@ -1807,14 +1909,7 @@ function renderInsights() {
     `;
   });
 
-  if (!html) {
-    body.innerHTML = `<div class="no-insights">
-      <div class="big">📊</div>
-      <p>No completed machines yet. Skip counts won't appear here.</p>
-    </div>`;
-  } else {
-    body.innerHTML = html;
-  }
+  body.innerHTML = html;
 }
 
 // ══════════════════════════════════════
