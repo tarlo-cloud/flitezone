@@ -1150,6 +1150,7 @@ const MACHINES = [
   { id: 6, name: "Leg Curl",       muscle: "Hamstrings",            defaultWeight: 30 },
   { id: 7, name: "Seated Dip",     muscle: "Triceps · Chest",       defaultWeight: 45 },
   { id: 8, name: "Oblique Crunch", muscle: "Core · Obliques",       defaultWeight: 30 },
+  { id: 9, name: "Seated Row",     muscle: "Back · Rhomboids · Biceps", defaultWeight: 30 },
 ];
 
 // State
@@ -1741,6 +1742,7 @@ function getCoachingTip(m, history, lastData) {
       6: "Hamstrings are often weaker than quads — this is normal. Stay consistent and they'll catch up.",
       7: "Seated dip works triceps and chest together. Keep elbows close to your body for best results.",
       8: "Core work pays off across every other machine. Try to include this next session.",
+      9: "Seated row targets your mid-back and rhomboids — the muscles behind good posture. Pull elbows back and squeeze your shoulder blades together at the end of each rep.",
     };
     let tip = firstTips[m.id] || 'First session logged — consistency is everything right now.';
     if (mood === 'easy') tip += ' It felt easy — consider adding 1 set next time before increasing weight.';
