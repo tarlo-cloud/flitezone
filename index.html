@@ -1076,6 +1076,12 @@
     <button class="btn-skip" onclick="skipMachine()">⏭ Skip</button>
     <button class="btn-done" onclick="doneMachine()">DONE ✓</button>
   </div>
+  <div style="padding:0 16px 12px;display:flex;justify-content:center">
+    <button id="undo-btn" onclick="undoLastMachine()"
+      style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:6px 16px;display:none">
+      ↩ Undo last machine
+    </button>
+  </div>
 </div>
 
 <!-- ══════════════════════════════════════
@@ -1159,6 +1165,7 @@ let currentMachineIndex = 0;
 let currentSets = [];
 let currentMood = null;
 let machineStatuses = {}; // { machineId: 'done' | 'skipped' | null }
+let lastDoneMachineId = null; // for undo
 
 // Storage helpers — safe wrapper that falls back to in-memory if localStorage blocked
 const _memStore = {};
@@ -1312,6 +1319,7 @@ function startWorkout() {
   if (!currentSession) {
     currentSession = { date: new Date().toISOString(), machines: [] };
     machineStatuses = {};
+    lastDoneMachineId = null;
   }
 
   // If all machines already handled, reset for a new session
@@ -1365,6 +1373,10 @@ function loadMachine(idx) {
   // Show prev button if not on first machine
   const prevBtn = document.getElementById('w-prev-btn');
   if (prevBtn) prevBtn.style.display = idx > 0 ? 'flex' : 'none';
+
+  // Show undo button if there's a last done machine to undo
+  const undoBtn = document.getElementById('undo-btn');
+  if (undoBtn) undoBtn.style.display = lastDoneMachineId ? 'block' : 'none';
 
   // Clear mood tags
   document.querySelectorAll('.mood-tag').forEach(t => t.classList.remove('selected'));
@@ -1457,13 +1469,38 @@ function doneMachine() {
 
   machineStatuses[m.id] = 'done';
   currentSession.machines.push(machineData);
+  lastDoneMachineId = m.id;
 
   // Check PR
   if (isPR(m.id, Math.round(volume))) {
     showToast(`🏆 New Volume PR on ${m.name}!`);
+  } else {
+    showToast(`✓ ${m.name} saved — tap Undo if needed`);
   }
 
   advanceToNext();
+}
+
+function undoLastMachine() {
+  if (!lastDoneMachineId) {
+    showToast('Nothing to undo');
+    return;
+  }
+  const machineId = lastDoneMachineId;
+  const m = MACHINES.find(x => x.id === machineId);
+  if (!m) return;
+
+  // Remove from session and statuses
+  delete machineStatuses[machineId];
+  currentSession.machines = currentSession.machines.filter(x => x.id !== machineId);
+  lastDoneMachineId = null;
+
+  // Jump back to that machine
+  const idx = MACHINES.findIndex(x => x.id === machineId);
+  currentMachineIndex = idx;
+  loadMachine(idx);
+  showScreen('workout');
+  showToast(`↩ Back to ${m.name} — re-log it`);
 }
 
 function skipMachine() {
