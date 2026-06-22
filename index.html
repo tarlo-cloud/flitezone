@@ -1357,8 +1357,8 @@ function renderHome() {
     card.className = `machine-card ${cardClass}`;
 
     const inWorkout = currentSession !== null;
-    const tapHint = inWorkout && status !== 'done'
-      ? `<div class="card-tap-hint">${status === 'skipped' ? '↩ Tap to redo' : '→ Tap to jump here'}</div>`
+    const tapHint = status !== 'done'
+      ? `<div class="card-tap-hint">${status === 'skipped' ? '↩ Tap to redo' : '→ Tap to start here'}</div>`
       : '';
 
     card.innerHTML = `
@@ -1372,9 +1372,21 @@ function renderHome() {
       <div class="machine-status">${statusIcon}</div>
     `;
 
-    if (inWorkout) {
-      card.addEventListener('click', () => jumpToMachine(m.id));
-    }
+    // Cards are always tappable: if no workout is in progress, tapping starts one
+    // and jumps straight to that machine. If a workout is already in progress,
+    // tapping jumps to that machine (unless it's already done).
+    card.addEventListener('click', () => {
+      if (status === 'done') {
+        showToast('Already done ✅ — open the workout to redo it');
+        return;
+      }
+      if (!inWorkout) {
+        currentSession = { date: new Date().toISOString(), machines: [] };
+        machineStatuses = {};
+        lastDoneMachineId = null;
+      }
+      jumpToMachine(m.id);
+    });
 
     list.appendChild(card);
   });
