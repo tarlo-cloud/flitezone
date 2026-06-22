@@ -498,6 +498,68 @@
     margin-top: 2px;
   }
 
+  /* Equipment variant toggle */
+  .variant-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .variant-btn {
+    flex: 1;
+    text-align: center;
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.5px;
+  }
+
+  .variant-btn.selected {
+    background: rgba(0,212,255,0.1);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .variant-btn:active { transform: scale(0.97); }
+
+  /* Difficulty rating */
+  .difficulty-section { margin-top: 20px; }
+
+  .difficulty-row {
+    display: flex;
+    gap: 5px;
+    justify-content: space-between;
+  }
+
+  .diff-num {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .diff-num.selected {
+    background: var(--accent2);
+    border-color: var(--accent2);
+    color: #000;
+    font-weight: 700;
+  }
+
+  .diff-num:active { transform: scale(0.9); }
+
   /* Mood tags */
   .mood-section { margin-top: 20px; }
 
@@ -1021,6 +1083,12 @@
   </div>
 
   <div class="workout-body" id="workout-body">
+    <!-- Equipment variant toggle -->
+    <div class="variant-toggle" id="variant-toggle">
+      <div class="variant-btn" data-variant="FliteZone" onclick="selectVariant('FliteZone')">FliteZone</div>
+      <div class="variant-btn" data-variant="Nautilus" onclick="selectVariant('Nautilus')">Nautilus</div>
+    </div>
+
     <!-- Last session reference -->
     <div class="last-session-ref" id="last-ref">
       <div class="last-ref-icon">📋</div>
@@ -1069,6 +1137,12 @@
         <div class="mood-tag" onclick="selectMood(this, 'increased')">⬆️ Increased</div>
         <div class="mood-tag" onclick="selectMood(this, 'dropped')">⬇️ Dropped</div>
       </div>
+    </div>
+
+    <!-- Difficulty rating -->
+    <div class="difficulty-section">
+      <div class="mood-label">Difficulty (optional)</div>
+      <div class="difficulty-row" id="difficulty-row"></div>
     </div>
   </div>
 
@@ -1168,6 +1242,9 @@ let currentSets = [];
 let currentMood = null;
 let machineStatuses = {}; // { machineId: 'done' | 'skipped' | null }
 let lastDoneMachineId = null; // for undo
+let currentVariant = 'FliteZone'; // 'FliteZone' | 'Nautilus'
+let currentDifficulty = null; // 0-10 or null
+let workoutBodyTemplate = null; // captured original HTML for restoring after end-of-circuit prompt
 
 // Storage helpers — safe wrapper that falls back to in-memory if localStorage blocked
 const _memStore = {};
@@ -1189,30 +1266,46 @@ function saveSessions(sessions) {
   _lsSet('fz_sessions', JSON.stringify(sessions));
 }
 
-function getLastSessionData(machineId) {
+function getLastSessionData(machineId, variant) {
+  // variant optional - if provided, only match that variant; if omitted, match any (most recent overall)
   const sessions = getSessions();
   for (let i = sessions.length - 1; i >= 0; i--) {
     const s = sessions[i];
-    const m = s.machines && s.machines.find(m => m.id === machineId && m.status === 'done');
+    const m = s.machines && s.machines.find(m =>
+      m.id === machineId && m.status === 'done' &&
+      (variant ? (m.variant || 'FliteZone') === variant : true));
     if (m) return m;
   }
   return null;
 }
 
-function getAllTimeVolume(machineId) {
-  // returns array of {date, volume} for chart/analysis
+function getLastUsedVariant(machineId) {
+  const sessions = getSessions();
+  for (let i = sessions.length - 1; i >= 0; i--) {
+    const s = sessions[i];
+    const m = s.machines && s.machines.find(m => m.id === machineId && m.status === 'done');
+    if (m) return m.variant || 'FliteZone';
+  }
+  return 'FliteZone';
+}
+
+function getAllTimeVolume(machineId, variant) {
+  // returns array of {date, volume, variant} for chart/analysis
+  // if variant provided, filters to that variant only; otherwise returns all variants
   const sessions = getSessions();
   return sessions
     .filter(s => s.machines)
     .map(s => {
-      const m = s.machines.find(m => m.id === machineId && m.status === 'done');
-      return m ? { date: s.date, volume: m.volume } : null;
+      const m = s.machines.find(m =>
+        m.id === machineId && m.status === 'done' &&
+        (variant ? (m.variant || 'FliteZone') === variant : true));
+      return m ? { date: s.date, volume: m.volume, variant: m.variant || 'FliteZone' } : null;
     })
     .filter(Boolean);
 }
 
-function isPR(machineId, volume) {
-  const history = getAllTimeVolume(machineId);
+function isPR(machineId, volume, variant) {
+  const history = getAllTimeVolume(machineId, variant);
   if (history.length === 0) return false;
   const maxPrev = Math.max(...history.map(h => h.volume));
   return volume > maxPrev;
@@ -1253,7 +1346,8 @@ function renderHome() {
     let lastStr = 'No data yet';
     if (last) {
       const setStr = last.sets.map(s => `${s.weight}×${s.reps}`).join(' · ');
-      lastStr = `Last: ${setStr} · Vol: ${last.volume}`;
+      const vTag = (last.variant === 'Nautilus') ? '🔵' : '🟢';
+      lastStr = `${vTag} Last: ${setStr} · Vol: ${last.volume}`;
     }
 
     const statusIcon = status === 'done' ? '✅' : status === 'skipped' ? '⏭' : '○';
@@ -1346,8 +1440,11 @@ function startWorkout() {
 
 function loadMachine(idx) {
   const m = MACHINES[idx];
-  currentSets = [{ weight: '', reps: '', checked: false }];
   currentMood = null;
+  currentDifficulty = null;
+
+  // Default to whichever variant was used last time on this machine
+  currentVariant = getLastUsedVariant(m.id);
 
   document.getElementById('w-machine-name').textContent = m.name;
   document.getElementById('w-machine-muscle').textContent = m.muscle;
@@ -1356,21 +1453,9 @@ function loadMachine(idx) {
   const done = Object.values(machineStatuses).filter(v => v !== null).length;
   document.getElementById('w-progress').style.width = `${(done / MACHINES.length) * 100}%`;
 
-  // Last session reference
-  const last = getLastSessionData(m.id);
-  if (last) {
-    const setStr = last.sets.map(s => `${s.weight}lbs × ${s.reps}`).join('  ·  ');
-    document.getElementById('last-ref-data').textContent = `${setStr}  (Vol: ${last.volume})`;
-  } else {
-    document.getElementById('last-ref-data').textContent = 'First time on this machine!';
-  }
-
-  // Pre-fill weight from last session or default
-  const defaultW = last ? last.sets[0].weight : m.defaultWeight;
-  currentSets[0].weight = defaultW;
-
-  renderSets();
-  updateSummary();
+  renderVariantToggle();
+  loadVariantData(m);
+  renderDifficultyRow();
 
   // Show prev button if not on first machine
   const prevBtn = document.getElementById('w-prev-btn');
@@ -1382,6 +1467,59 @@ function loadMachine(idx) {
 
   // Clear mood tags
   document.querySelectorAll('.mood-tag').forEach(t => t.classList.remove('selected'));
+}
+
+function renderVariantToggle() {
+  document.querySelectorAll('.variant-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.variant === currentVariant);
+  });
+}
+
+function selectVariant(variant) {
+  currentVariant = variant;
+  renderVariantToggle();
+  const m = MACHINES[currentMachineIndex];
+  loadVariantData(m);
+}
+
+function loadVariantData(m) {
+  currentSets = [{ weight: '', reps: '', checked: false }];
+
+  // Last session reference - specific to this variant
+  const last = getLastSessionData(m.id, currentVariant);
+  if (last) {
+    const setStr = last.sets.map(s => `${s.weight}lbs × ${s.reps}`).join('  ·  ');
+    document.getElementById('last-ref-data').textContent = `[${currentVariant}] ${setStr}  (Vol: ${last.volume})`;
+  } else {
+    document.getElementById('last-ref-data').textContent = `First time on ${currentVariant}!`;
+  }
+
+  // Pre-fill weight from last session on THIS variant, or fall back to machine default
+  const defaultW = last ? last.sets[0].weight : m.defaultWeight;
+  currentSets[0].weight = defaultW;
+
+  renderSets();
+  updateSummary();
+}
+
+function renderDifficultyRow() {
+  const row = document.getElementById('difficulty-row');
+  if (!row) return;
+  row.innerHTML = '';
+  for (let i = 0; i <= 10; i++) {
+    const el = document.createElement('div');
+    el.className = 'diff-num';
+    el.textContent = i;
+    el.onclick = () => selectDifficulty(i);
+    row.appendChild(el);
+  }
+}
+
+function selectDifficulty(val) {
+  currentDifficulty = (currentDifficulty === val) ? null : val; // tap again to clear
+  document.querySelectorAll('.diff-num').forEach((el, i) => {
+    el.classList.toggle('selected', i === currentDifficulty);
+  });
 }
 
 function renderSets() {
@@ -1463,18 +1601,20 @@ function doneMachine() {
     id: m.id,
     name: m.name,
     status: 'done',
+    variant: currentVariant,
     sets: filled.map(s => ({ weight: parseFloat(s.weight), reps: parseInt(s.reps) })),
     totalReps,
     volume: Math.round(volume),
-    mood: currentMood
+    mood: currentMood,
+    difficulty: currentDifficulty
   };
 
   machineStatuses[m.id] = 'done';
   currentSession.machines.push(machineData);
   lastDoneMachineId = m.id;
 
-  // Check PR
-  if (isPR(m.id, Math.round(volume))) {
+  // Check PR (within the same variant)
+  if (isPR(m.id, Math.round(volume), currentVariant)) {
     showToast(`🏆 New Volume PR on ${m.name}!`);
   } else {
     showToast(`✓ ${m.name} saved — tap Undo if needed`);
@@ -1528,6 +1668,13 @@ function jumpToMachine(machineId) {
     delete machineStatuses[machineId];
     currentSession.machines = currentSession.machines.filter(x => x.id !== machineId);
   }
+
+  // Restore normal workout-body markup in case the end-of-circuit prompt was showing
+  const body = document.getElementById('workout-body');
+  if (workoutBodyTemplate && body) body.innerHTML = workoutBodyTemplate;
+  const actionBtns = document.querySelector('.action-buttons');
+  if (actionBtns) actionBtns.style.display = 'grid';
+
   currentMachineIndex = idx;
   loadMachine(idx);
   showScreen('workout');
@@ -1552,27 +1699,81 @@ function goToPrevMachine() {
 }
 
 function advanceToNext() {
-  // Find next undone machine
+  // Find next undone machine ahead in the sequence
   const nextIdx = MACHINES.findIndex((m, i) => i > currentMachineIndex && !machineStatuses[m.id]);
   if (nextIdx !== -1) {
     currentMachineIndex = nextIdx;
     loadMachine(currentMachineIndex);
-  } else {
-    // Check if all are handled
-    const allHandled = MACHINES.every(m => machineStatuses[m.id]);
-    if (allHandled) {
-      showSummary();
-    } else {
-      // Wrap to find any remaining
-      const anyLeft = MACHINES.findIndex(m => !machineStatuses[m.id]);
-      if (anyLeft !== -1) {
-        currentMachineIndex = anyLeft;
-        loadMachine(currentMachineIndex);
-      } else {
-        showSummary();
-      }
-    }
+    return;
   }
+
+  // Reached the end of the sequence. Check for skipped machines anywhere.
+  const skippedIds = MACHINES.filter(m => machineStatuses[m.id] === 'skipped').map(m => m.id);
+  const stillPending = MACHINES.filter(m => !machineStatuses[m.id]);
+
+  if (skippedIds.length > 0 || stillPending.length > 0) {
+    showEndOfCircuitPrompt(skippedIds, stillPending);
+  } else {
+    showSummary();
+  }
+}
+
+function showEndOfCircuitPrompt(skippedIds, stillPending) {
+  const names = MACHINES
+    .filter(m => skippedIds.includes(m.id) || stillPending.some(p => p.id === m.id))
+    .map(m => m.name);
+
+  const body = document.getElementById('workout-body');
+  const header = document.querySelector('.workout-header .workout-machine-name');
+  if (header) header.textContent = 'Almost done!';
+  const muscleEl = document.querySelector('.workout-muscle');
+  if (muscleEl) muscleEl.textContent = '';
+
+  body.innerHTML = `
+    <div style="padding:20px 4px;text-align:center">
+      <div style="font-size:40px;margin-bottom:12px">🤔</div>
+      <div style="font-size:16px;color:var(--text);font-weight:600;margin-bottom:8px">
+        You skipped ${names.length} machine${names.length !== 1 ? 's' : ''}
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.6">
+        ${names.join(' · ')}
+      </div>
+      <button class="btn-done" style="width:100%;margin-bottom:10px" onclick="goFinishSkipped()">
+        FINISH SKIPPED MACHINES
+      </button>
+      <button class="btn-skip" style="width:100%" onclick="showSummary()">
+        END WORKOUT NOW
+      </button>
+    </div>
+  `;
+
+  // Hide the normal action buttons while this prompt is showing
+  const actionBtns = document.querySelector('.action-buttons');
+  if (actionBtns) actionBtns.style.display = 'none';
+}
+
+function goFinishSkipped() {
+  // Restore the original workout-body markup before loading a real machine again
+  const body = document.getElementById('workout-body');
+  if (workoutBodyTemplate && body) body.innerHTML = workoutBodyTemplate;
+
+  // Restore action buttons
+  const actionBtns = document.querySelector('.action-buttons');
+  if (actionBtns) actionBtns.style.display = 'grid';
+
+  const idx = MACHINES.findIndex(m => !machineStatuses[m.id] || machineStatuses[m.id] === 'skipped');
+  if (idx === -1) {
+    showSummary();
+    return;
+  }
+  // Un-skip it so it can be logged fresh
+  const m = MACHINES[idx];
+  if (machineStatuses[m.id] === 'skipped') {
+    delete machineStatuses[m.id];
+    currentSession.machines = currentSession.machines.filter(x => x.id !== m.id);
+  }
+  currentMachineIndex = idx;
+  loadMachine(idx);
 }
 
 function confirmBack() {
@@ -1918,8 +2119,11 @@ function renderInsights() {
       .map(s => s.machines && s.machines.find(x => x.id === m.id && x.status === 'done'))
       .find(Boolean);
     const setsStr = lastData ? lastData.sets.map(s => s.weight + '×' + s.reps).join(' · ') : '—';
+    const variantTag = lastData && lastData.variant === 'Nautilus' ? '🔵 Nautilus' : '🟢 FliteZone';
     const moodMap = { easy:'💪 Easy', good:'👍 Good', hard:'😅 Hard', increased:'⬆️ Increased', dropped:'⬇️ Dropped' };
     const moodStr = lastData && lastData.mood ? moodMap[lastData.mood] || '' : '';
+    const diffStr = (lastData && lastData.difficulty !== null && lastData.difficulty !== undefined)
+      ? `Diff ${lastData.difficulty}/10` : '';
     const prBadge = isPR(m.id, latest.volume)
       ? `<span style="font-size:10px;background:rgba(255,179,0,0.15);color:var(--warning);border:1px solid rgba(255,179,0,0.3);padding:1px 7px;border-radius:100px;margin-left:6px;letter-spacing:1px">PR</span>`
       : '';
@@ -1939,8 +2143,8 @@ function renderInsights() {
           <div class="insights-bar-fill" style="width:${barPct}%"></div>
         </div>
         <div class="insights-meta">
-          <span>${setsStr}</span>
-          <span>${moodStr ? moodStr + '  ·  ' : ''}${history.length} session${history.length !== 1 ? 's' : ''}</span>
+          <span>${variantTag} · ${setsStr}</span>
+          <span>${moodStr ? moodStr + '  ·  ' : ''}${diffStr ? diffStr + '  ·  ' : ''}${history.length} session${history.length !== 1 ? 's' : ''}</span>
         </div>
         <div class="insights-coaching">
           <div class="coaching-label">💡 Coaching</div>
@@ -1986,6 +2190,11 @@ function showToast(msg) {
 
 // On startup: if no sessions in localStorage, show restore hint
 function init() {
+  // Capture the original workout-body markup so we can restore it
+  // after showing the end-of-circuit "finish skipped" prompt.
+  const body = document.getElementById('workout-body');
+  if (body) workoutBodyTemplate = body.innerHTML;
+
   renderHome();
   const sessions = getSessions();
   if (sessions.length === 0) {
