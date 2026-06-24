@@ -145,6 +145,42 @@
     padding: 20px 24px 12px;
   }
 
+  .section-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 12px;
+  }
+
+  .section-label-row .section-label {
+    font-size: 11px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    font-weight: 600;
+  }
+
+  .variant-legend {
+    display: flex;
+    gap: 12px;
+    font-size: 10px;
+    color: var(--text3);
+    letter-spacing: 0.3px;
+  }
+
+  .variant-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .legend-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
   .machine-list {
     padding: 0 16px;
     flex: 1;
@@ -1050,7 +1086,13 @@
     </div>
   </div>
 
-  <div class="section-label">8-Machine Circuit</div>
+  <div class="section-label-row">
+    <div class="section-label" id="section-label" style="padding:0">Circuit</div>
+    <div class="variant-legend">
+      <span><span class="legend-dot" style="background:#00e676"></span>FliteZone</span>
+      <span><span class="legend-dot" style="background:#00d4ff"></span>Nautilus</span>
+    </div>
+  </div>
 
   <div class="machine-list" id="machine-list">
     <!-- populated by JS -->
@@ -1340,6 +1382,10 @@ function renderHome() {
   const totalVol = sessions.reduce((sum, s) => sum + (s.totalVolume || 0), 0);
   document.getElementById('stat-volume').textContent = totalVol >= 1000
     ? (totalVol / 1000).toFixed(1) + 'k' : totalVol;
+
+  // Section label with live machine count
+  const sectionLabel = document.getElementById('section-label');
+  if (sectionLabel) sectionLabel.textContent = `${MACHINES.length}-Machine Circuit`;
 
   // Machine list
   const list = document.getElementById('machine-list');
