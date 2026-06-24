@@ -1150,10 +1150,14 @@
     <button class="btn-skip" onclick="skipMachine()">⏭ Skip</button>
     <button class="btn-done" onclick="doneMachine()">DONE ✓</button>
   </div>
-  <div style="padding:0 16px 12px;display:flex;justify-content:center">
+  <div style="padding:0 16px 12px;display:flex;justify-content:center;gap:16px">
     <button id="undo-btn" onclick="undoLastMachine()"
       style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:6px 16px;display:none">
       ↩ Undo last machine
+    </button>
+    <button id="cancel-edit-btn" onclick="confirmBack()"
+      style="background:none;border:none;color:var(--text3);font-size:13px;cursor:pointer;padding:6px 16px;display:none">
+      ✕ Cancel edit
     </button>
   </div>
 </div>
@@ -1245,6 +1249,8 @@ let lastDoneMachineId = null; // for undo
 let currentVariant = 'FliteZone'; // 'FliteZone' | 'Nautilus'
 let currentDifficulty = null; // 0-10 or null
 let workoutBodyTemplate = null; // captured original HTML for restoring after end-of-circuit prompt
+let isEditingDoneMachine = false; // true when re-editing an already-completed machine mid-session
+let editSnapshot = null; // backup of the saved entry being edited, in case the user cancels
 
 // Storage helpers — safe wrapper that falls back to in-memory if localStorage blocked
 const _memStore = {};
@@ -1357,9 +1363,14 @@ function renderHome() {
     card.className = `machine-card ${cardClass}`;
 
     const inWorkout = currentSession !== null;
-    const tapHint = status !== 'done'
-      ? `<div class="card-tap-hint">${status === 'skipped' ? '↩ Tap to redo' : '→ Tap to start here'}</div>`
-      : '';
+    let tapHint = '';
+    if (status === 'skipped') {
+      tapHint = `<div class="card-tap-hint">↩ Tap to redo</div>`;
+    } else if (status === 'done') {
+      tapHint = inWorkout ? `<div class="card-tap-hint">✏️ Tap to edit</div>` : '';
+    } else {
+      tapHint = `<div class="card-tap-hint">→ Tap to start here</div>`;
+    }
 
     card.innerHTML = `
       <div class="machine-num">${m.id}</div>
@@ -1374,10 +1385,14 @@ function renderHome() {
 
     // Cards are always tappable: if no workout is in progress, tapping starts one
     // and jumps straight to that machine. If a workout is already in progress,
-    // tapping jumps to that machine (unless it's already done).
+    // tapping a done machine lets you edit it; otherwise it jumps to it.
     card.addEventListener('click', () => {
       if (status === 'done') {
-        showToast('Already done ✅ — open the workout to redo it');
+        if (inWorkout) {
+          editDoneMachine(m.id);
+        } else {
+          showToast('Workout already finished — restore a backup to edit past sessions');
+        }
         return;
       }
       if (!inWorkout) {
@@ -1454,6 +1469,7 @@ function loadMachine(idx) {
   const m = MACHINES[idx];
   currentMood = null;
   currentDifficulty = null;
+  isEditingDoneMachine = false;
 
   // Default to whichever variant was used last time on this machine
   currentVariant = getLastUsedVariant(m.id);
@@ -1476,6 +1492,10 @@ function loadMachine(idx) {
   // Show undo button if there's a last done machine to undo
   const undoBtn = document.getElementById('undo-btn');
   if (undoBtn) undoBtn.style.display = lastDoneMachineId ? 'block' : 'none';
+
+  // Not in edit mode here, so hide the cancel-edit button
+  const cancelEditBtn = document.getElementById('cancel-edit-btn');
+  if (cancelEditBtn) cancelEditBtn.style.display = 'none';
 
   // Clear mood tags
   document.querySelectorAll('.mood-tag').forEach(t => t.classList.remove('selected'));
@@ -1626,7 +1646,18 @@ function doneMachine() {
   lastDoneMachineId = m.id;
 
   // Check PR (within the same variant)
-  if (isPR(m.id, Math.round(volume), currentVariant)) {
+  const gotPR = isPR(m.id, Math.round(volume), currentVariant);
+
+  if (isEditingDoneMachine) {
+    isEditingDoneMachine = false;
+    editSnapshot = null;
+    renderHome();
+    showScreen('home');
+    showToast(gotPR ? `🏆 Updated — new Volume PR on ${m.name}!` : `✓ ${m.name} updated`);
+    return;
+  }
+
+  if (gotPR) {
     showToast(`🏆 New Volume PR on ${m.name}!`);
   } else {
     showToast(`✓ ${m.name} saved — tap Undo if needed`);
@@ -1659,6 +1690,13 @@ function undoLastMachine() {
 
 function skipMachine() {
   const m = MACHINES[currentMachineIndex];
+
+  if (isEditingDoneMachine) {
+    // Skipping while editing would discard the done entry — treat it as "cancel edit, mark skipped instead"
+    isEditingDoneMachine = false;
+    editSnapshot = null;
+  }
+
   machineStatuses[m.id] = 'skipped';
   currentSession.machines = currentSession.machines.filter(x => x.id !== m.id);
   currentSession.machines.push({
@@ -1672,8 +1710,9 @@ function jumpToMachine(machineId) {
   const idx = MACHINES.findIndex(m => m.id === machineId);
   if (idx === -1) return;
   const status = machineStatuses[machineId];
+
   if (status === 'done') {
-    showToast('Already done ✅ — tap Skip to redo');
+    editDoneMachine(machineId);
     return;
   }
   if (status === 'skipped') {
@@ -1690,6 +1729,83 @@ function jumpToMachine(machineId) {
   currentMachineIndex = idx;
   loadMachine(idx);
   showScreen('workout');
+}
+
+function editDoneMachine(machineId) {
+  const idx = MACHINES.findIndex(m => m.id === machineId);
+  if (idx === -1) return;
+  const m = MACHINES[idx];
+
+  // Find the already-saved entry for this machine in the CURRENT session
+  const saved = currentSession && currentSession.machines.find(x => x.id === machineId && x.status === 'done');
+  if (!saved) {
+    // Shouldn't happen, but fall back to normal jump
+    showToast('Could not find saved data to edit');
+    return;
+  }
+
+  // Restore normal workout-body markup in case the end-of-circuit prompt was showing
+  const body = document.getElementById('workout-body');
+  if (workoutBodyTemplate && body) body.innerHTML = workoutBodyTemplate;
+  const actionBtns = document.querySelector('.action-buttons');
+  if (actionBtns) actionBtns.style.display = 'grid';
+
+  currentMachineIndex = idx;
+
+  // Remove it from "done" so re-saving doesn't duplicate it, but keep a snapshot in case of cancel
+  editSnapshot = JSON.parse(JSON.stringify(saved));
+  delete machineStatuses[machineId];
+  currentSession.machines = currentSession.machines.filter(x => x.id !== machineId);
+  lastDoneMachineId = null;
+
+  // Load machine shell (sets up variant toggle, headers, etc.)
+  currentVariant = saved.variant || 'FliteZone';
+  currentMood = saved.mood || null;
+  currentDifficulty = (saved.difficulty !== undefined && saved.difficulty !== null) ? saved.difficulty : null;
+
+  document.getElementById('w-machine-name').textContent = m.name;
+  document.getElementById('w-machine-muscle').textContent = m.muscle;
+  document.getElementById('w-machine-nav').textContent = `${idx + 1} / ${MACHINES.length}`;
+
+  const done = Object.values(machineStatuses).filter(v => v !== null).length;
+  document.getElementById('w-progress').style.width = `${(done / MACHINES.length) * 100}%`;
+
+  renderVariantToggle();
+  renderDifficultyRow();
+
+  // Pre-fill sets with the SAVED data (not last-session reference) so you're editing what you actually logged
+  currentSets = saved.sets.map(s => ({ weight: s.weight, reps: s.reps, checked: true }));
+  if (currentSets.length === 0) currentSets = [{ weight: '', reps: '', checked: false }];
+  renderSets();
+  updateSummary();
+
+  // Restore mood tag selection visually
+  document.querySelectorAll('.mood-tag').forEach(t => {
+    const tagMood = t.getAttribute('onclick').match(/'([^']+)'/)[1];
+    t.classList.toggle('selected', tagMood === currentMood);
+  });
+
+  // Restore difficulty selection visually
+  if (currentDifficulty !== null) {
+    document.querySelectorAll('.diff-num').forEach((el, i) => {
+      el.classList.toggle('selected', i === currentDifficulty);
+    });
+  }
+
+  // Show a clear "editing" reference instead of last-session text
+  document.getElementById('last-ref-data').textContent =
+    `Editing this session's entry — adjust sets below and tap Done to re-save`;
+
+  const prevBtn = document.getElementById('w-prev-btn');
+  if (prevBtn) prevBtn.style.display = idx > 0 ? 'flex' : 'none';
+  const undoBtn = document.getElementById('undo-btn');
+  if (undoBtn) undoBtn.style.display = 'none';
+  const cancelEditBtn = document.getElementById('cancel-edit-btn');
+  if (cancelEditBtn) cancelEditBtn.style.display = 'block';
+
+  showScreen('workout');
+  isEditingDoneMachine = true;
+  showToast(`✏️ Editing ${m.name} — was ${saved.sets.length} set${saved.sets.length !== 1 ? 's' : ''}`);
 }
 
 function goToPrevMachine() {
@@ -1789,6 +1905,22 @@ function goFinishSkipped() {
 }
 
 function confirmBack() {
+  if (isEditingDoneMachine) {
+    if (confirm('Cancel editing? Your original saved data for this machine will be kept as-is.')) {
+      // Restore the original entry exactly as it was before editing began
+      if (editSnapshot) {
+        currentSession.machines = currentSession.machines.filter(x => x.id !== editSnapshot.id);
+        currentSession.machines.push(editSnapshot);
+        machineStatuses[editSnapshot.id] = 'done';
+      }
+      isEditingDoneMachine = false;
+      editSnapshot = null;
+      renderHome();
+      showScreen('home');
+    }
+    return;
+  }
+
   if (confirm('Go back to home? Your progress is saved.')) {
     renderHome();
     showScreen('home');
